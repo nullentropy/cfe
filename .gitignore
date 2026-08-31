@@ -1,0 +1,9 @@
+.DS_Store
+
+cfe
+CFE.app/
+*.png
+!icon.png
+!screenshots/*.png
+go.work
+go.work.sum
