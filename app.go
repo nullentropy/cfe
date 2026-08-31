@@ -39,6 +39,7 @@ IDENTITIES
 MOUSE PROTOCOL
 --------------------------------------------------
   OPEN>> / VIEW    enter a directory / scan a file
+  back / forward   the mouse's extra buttons walk history
   right-click      context directives on the listing
   column headers   sort; drag dividers to resize
   sidebar          the map is not the territory
@@ -59,6 +60,9 @@ func mount(s *caution.Session) *caution.Node {
 
 	pf := loadPrefs()
 	cur := "/"
+	var history []string // visited sectors, for the mouse back/forward buttons
+	histIdx := -1
+	navigatingHist := false
 	var entries []entry
 	var rows []entry
 	showHidden := pf.Hidden
@@ -115,12 +119,23 @@ func mount(s *caution.Session) *caution.Node {
 	s.SetMetrics(metricsCRT)
 	s.SetTitle("CFE :: THE GIBSON")
 
-	titleLeft := 14.0
-	if customChrome {
-		titleLeft = 84
+	titleLbl := caution.Label("CFE :: FILE EXPLORER").Mono().FontSize(15).Weight(700).Color("$ink")
+	fullscreen := s.Fullscreen()
+	applyChrome := func() {
+		left := 14.0
+		if customChrome && !fullscreen {
+			left = 84
+		}
+		titleLbl.Anchor(caution.A{Left: caution.Px(left), CenterY: caution.Px(0)})
+		if gib != nil {
+			gib.applyChrome()
+		}
 	}
-	titleLbl := caution.Label("CFE :: FILE EXPLORER").Mono().FontSize(15).Weight(700).Color("$ink").
-		Anchor(caution.A{Left: caution.Px(titleLeft), CenterY: caution.Px(0)})
+	applyChrome()
+	s.OnFullscreen(func(on bool) {
+		fullscreen = on
+		applyChrome()
+	})
 	clockLbl := caution.Label(time.Now().Format("15:04:05")).Mono().FontSize(13).Color("$inkDim").
 		Anchor(caution.A{Right: caution.Px(14), Top: caution.Px(8)})
 	dateLbl := caution.Label(strings.ToUpper(time.Now().Format("Mon 02 Jan 2006"))).Mono().FontSize(9).Color("$inkFaint").
@@ -458,6 +473,10 @@ func mount(s *caution.Session) *caution.Node {
 			return false
 		}
 		cur = path
+		if !navigatingHist && (histIdx < 0 || history[histIdx] != path) {
+			history = append(history[:histIdx+1], path) // a new nav drops any forward entries
+			histIdx = len(history) - 1
+		}
 		entries = ents
 		filter = ""
 		selKey = ""
@@ -823,6 +842,27 @@ func mount(s *caution.Session) *caution.Node {
 		}
 	})
 
+	s.OnAux(func(button int) {
+		switch button {
+		case 4:
+			if histIdx > 0 {
+				navigatingHist = true
+				if nav(history[histIdx-1]) {
+					histIdx--
+				}
+				navigatingHist = false
+			}
+		case 5:
+			if histIdx < len(history)-1 {
+				navigatingHist = true
+				if nav(history[histIdx+1]) {
+					histIdx++
+				}
+				navigatingHist = false
+			}
+		}
+	})
+
 	header := caution.Panel().Bg("$titlebar").Border("$edge", 1).H(44).Dock("top").WindowDrag().
 		Kids(titleLbl, clockLbl, dateLbl)
 	pathBar := caution.Panel().Bg("$panelAlt").Border("$edgeSoft", 1).H(36).Dock("top").Kids(
@@ -876,8 +916,9 @@ func mount(s *caution.Session) *caution.Node {
 			table.SetSelectedKey(name)
 			showPreviewFor(name)
 		},
-		crt: crtState,
-		cmd: runCmd,
+		crt:        crtState,
+		cmd:        runCmd,
+		fullscreen: func() bool { return fullscreen },
 	})
 	s.OnResize(func(w, h float64) {
 		if gib.isOpen() {

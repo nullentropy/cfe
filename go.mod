@@ -3,7 +3,7 @@ module cfe
 go 1.26
 
 require (
-	github.com/nullentropy/caution/go v0.15.0
+	github.com/nullentropy/caution/go v0.17.0
 	golang.org/x/image v0.45.0
 )
 

@@ -113,16 +113,17 @@ type tower struct {
 }
 
 type gibsonDeps struct {
-	s        *caution.Session
-	root     *caution.Node
-	nav      func(path string) bool
-	view     func(e entry, hex bool)
-	cur      func() string
-	ents     func() []entry
-	theme    func() string
-	onTarget func(name string)
-	crt      func() (frag string, animate bool, curve float64)
-	cmd      func(line string)
+	s          *caution.Session
+	root       *caution.Node
+	nav        func(path string) bool
+	view       func(e entry, hex bool)
+	cur        func() string
+	ents       func() []entry
+	theme      func() string
+	onTarget   func(name string)
+	crt        func() (frag string, animate bool, curve float64)
+	cmd        func(line string)
+	fullscreen func() bool
 }
 
 type gibson struct {
@@ -131,6 +132,7 @@ type gibson struct {
 	overlay *caution.Node
 	scene   *caution.Node
 	glass   *caution.Node
+	topRow  *caution.Node
 	nameLbl *caution.Node
 	sector  *caution.Node
 	counts  *caution.Node
@@ -206,6 +208,22 @@ func (g *gibson) toggle() {
 	}
 }
 
+// chromeAnchor insets the top HUD past the traffic lights under custom chrome,
+// unless fullscreen
+func (g *gibson) chromeAnchor() caution.A {
+	left := 12.0
+	if customChrome && (g.fullscreen == nil || !g.fullscreen()) {
+		left = 84
+	}
+	return caution.A{Left: caution.Px(left), Right: caution.Px(12), Top: caution.Px(0), Bottom: caution.Px(0)}
+}
+
+func (g *gibson) applyChrome() {
+	if g.topRow != nil {
+		g.topRow.Anchor(g.chromeAnchor())
+	}
+}
+
 // sceneDims pins the interactive size from the viewport rather than filling,
 // because glass picks are glass-relative
 func (g *gibson) sceneDims() (w, h float64) {
@@ -258,24 +276,20 @@ func (g *gibson) enter() {
 	g.counts = caution.Label("").Mono().FontSize(10).Color("$inkFaint")
 	g.targetL = caution.Label("NO TARGET").Mono().FontSize(12).Weight(700).Color("$accent")
 
-	hudLeft := 12.0
-	if customChrome {
-		hudLeft = 84
-	}
+	g.topRow = caution.HStack().Gap(12).Align("center").Anchor(g.chromeAnchor()).Kids(
+		caution.Label("THE GIBSON //").Mono().FontSize(14).Weight(700).Color("$accent"),
+		g.sector,
+		g.counts,
+		caution.Button("UP").OnClick(func() {
+			if g.diving {
+				return
+			}
+			g.nav(filepath.Dir(g.cur()))
+		}),
+		caution.Button("SURFACE").Primary().OnClick(func() { g.exit() }))
 	topHud := caution.Panel().Bg("$titlebar").Border("$edge", 1).H(gibHudTop).WindowDrag().
 		Anchor(caution.A{Left: caution.Px(0), Top: caution.Px(0), Right: caution.Px(0)}).
-		Kids(caution.HStack().Gap(12).Align("center").Anchor(caution.A{
-			Left: caution.Px(hudLeft), Right: caution.Px(12), Top: caution.Px(0), Bottom: caution.Px(0)}).Kids(
-			caution.Label("THE GIBSON //").Mono().FontSize(14).Weight(700).Color("$accent"),
-			g.sector,
-			g.counts,
-			caution.Button("UP").OnClick(func() {
-				if g.diving {
-					return
-				}
-				g.nav(filepath.Dir(g.cur()))
-			}),
-			caution.Button("SURFACE").Primary().OnClick(func() { g.exit() })))
+		Kids(g.topRow)
 	g.cmdField = caution.TextField("").Mono().FontSize(12).Fill(1).
 		Placeholder("type a name to search · next · prev · clear · cd <dir> · up · surface")
 	g.cmdField.OnCommit(func(v string) {
