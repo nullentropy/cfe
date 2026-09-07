@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"cfe/sound"
+
 	caution "github.com/nullentropy/caution/go"
 )
 
@@ -124,6 +126,7 @@ type gibsonDeps struct {
 	crt        func() (frag string, animate bool, curve float64)
 	cmd        func(line string)
 	fullscreen func() bool
+	soundOn    func() bool
 }
 
 type gibson struct {
@@ -323,6 +326,10 @@ func (g *gibson) enter() {
 
 	g.tweenOrbit(g.vantage(g.orb.az), 1, 0, 900*time.Millisecond, nil)
 
+	if g.soundOn != nil && g.soundOn() {
+		g.s.Loop(sound.Ambient())
+	}
+
 	g.enterGen++
 	gen := g.enterGen
 	s := g.s
@@ -395,6 +402,9 @@ func (g *gibson) camGroundAxes() (rx, rz, fx, fz float64) {
 func (g *gibson) exit() {
 	if !g.isOpen() {
 		return
+	}
+	if g.soundOn != nil && g.soundOn() {
+		g.s.Stop(sound.Ambient())
 	}
 	g.enterGen++
 	g.tweenGen++

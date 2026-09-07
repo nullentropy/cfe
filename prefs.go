@@ -12,6 +12,7 @@ type prefs struct {
 	Identity string             `json:"identity"`
 	CRT      bool               `json:"crt"`
 	Flicker  bool               `json:"flicker"`
+	Sound    bool               `json:"sound"`
 	Hidden   bool               `json:"hidden"`
 	WinW     int                `json:"winW"`
 	WinH     int                `json:"winH"`

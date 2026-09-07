@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"cfe/sound"
+
 	caution "github.com/nullentropy/caution/go"
 )
 
@@ -70,6 +72,9 @@ func mount(s *caution.Session) *caution.Node {
 	sortKey, sortAsc := "name", true
 	themeName := pf.Identity
 	crtOn, flickerOn := pf.CRT, pf.Flicker
+	soundOn := pf.Sound
+	soundReady := false
+	var applySound func()
 	winW, winH := pf.WinW, pf.WinH
 	colW := pf.ColW
 	if colW == nil {
@@ -110,7 +115,7 @@ func mount(s *caution.Session) *caution.Node {
 		}
 		select {
 		case saveCh <- prefs{Identity: themeName, CRT: crtOn, Flicker: flickerOn,
-			Hidden: showHidden, WinW: winW, WinH: winH, ColW: cw}:
+			Sound: soundOn, Hidden: showHidden, WinW: winW, WinH: winH, ColW: cw}:
 		default:
 		}
 	}
@@ -638,6 +643,13 @@ func mount(s *caution.Session) *caution.Node {
 					rebuildMenu()
 					persist()
 				}},
+				{Sep: true},
+				{Title: "SOUND: " + onoff(soundOn), OnPick: func() {
+					soundOn = !soundOn
+					applySound()
+					rebuildMenu()
+					persist()
+				}},
 			}},
 			caution.Menu{Title: "IDENTITY", Items: themeItems},
 			caution.Menu{Title: "HELP", Items: []caution.MenuItem{
@@ -919,7 +931,31 @@ func mount(s *caution.Session) *caution.Node {
 		crt:        crtState,
 		cmd:        runCmd,
 		fullscreen: func() bool { return fullscreen },
+		soundOn:    func() bool { return soundOn && soundReady },
 	})
+
+	applySound = func() {
+		switch {
+		case !soundOn:
+			s.SetSounds(map[string]string{})
+			s.StopAll()
+		case soundReady:
+			s.PreloadSounds(sound.Preload()...)
+			s.SetSounds(sound.Gestures())
+			if gib.isOpen() {
+				s.Loop(sound.Ambient())
+			}
+		default:
+			go func() {
+				sound.Warm()
+				s.Update(func() {
+					soundReady = true
+					applySound()
+				})
+			}()
+		}
+	}
+	applySound()
 	s.OnResize(func(w, h float64) {
 		if gib.isOpen() {
 			gib.relayout()
